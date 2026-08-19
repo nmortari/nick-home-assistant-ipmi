@@ -130,7 +130,7 @@ def test_changed_state_or_availability_writes_once() -> None:
     assert entity.writes == 2
 
 
-def test_button_signature_can_ignore_last_pressed_state() -> None:
+def test_button_signature_ignores_state_and_availability() -> None:
     module = _load_entity_module()
     coordinator = FakeCoordinator()
 
@@ -143,7 +143,7 @@ def test_button_signature_can_ignore_last_pressed_state() -> None:
             self.writes = 0
 
         def _coordinator_signature(self):
-            return self.available
+            return None
 
         def async_write_ha_state(self):
             self.writes += 1
@@ -157,4 +157,4 @@ def test_button_signature_can_ignore_last_pressed_state() -> None:
 
     coordinator.last_update_success = False
     coordinator.listener()
-    assert button.writes == 1
+    assert button.writes == 0

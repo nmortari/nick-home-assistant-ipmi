@@ -73,6 +73,20 @@ def energy_sensors_enabled(
     return "power" in types and create_energy_sensors
 
 
+def should_retain_last_state(
+    *,
+    consecutive_failures: int,
+    has_previous_data: bool,
+    unavailable_after: int,
+) -> bool:
+    """Return whether a transient poll failure should keep confirmed data."""
+    return (
+        has_previous_data
+        and unavailable_after > 0
+        and 0 < consecutive_failures < unavailable_after
+    )
+
+
 def normalize_addon_mapping(value: Any) -> dict[str, Any]:
     """Return a dict; PHP encodes empty associative arrays as JSON lists."""
     if isinstance(value, dict):

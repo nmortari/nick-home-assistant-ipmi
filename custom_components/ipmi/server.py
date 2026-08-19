@@ -109,6 +109,7 @@ class IpmiServer:
         self._device_info: IpmiDeviceInfo | None = None
         self._known_sensors: set[str] = set()
         self.last_backend = BACKEND_NONE
+        self.last_update_success = False
         self.auth_failed = False
         self._last_rmcp_error: str | None = None
 
@@ -586,14 +587,14 @@ class IpmiServer:
         self._rmcp_ipmi = ipmi
         return ipmi
 
-    def update(self) -> None:
-        """Refresh device info from the preferred backend(s)."""
+    def update(self) -> bool:
+        """Refresh device info and return whether this poll succeeded."""
         info = None
         self.auth_failed = False
         self._last_rmcp_error = None
-        self.last_backend = BACKEND_NONE
 
         json: dict[str, Any] | None = None
+        successful_backend = BACKEND_NONE
 
         self._probe_addon_meta()
 
@@ -607,18 +608,18 @@ class IpmiServer:
                     # Unsuccessful addon payload: try RMCP unless addon-only.
                     json = None
                 else:
-                    self.last_backend = BACKEND_ADDON
+                    successful_backend = BACKEND_ADDON
 
             if json is None and self._should_try_rmcp():
                 json = self.get_from_rmcp()
                 if json is not None:
-                    self.last_backend = BACKEND_RMCP
+                    successful_backend = BACKEND_RMCP
                 else:
                     self.auth_failed = looks_like_auth_error(self._last_rmcp_error)
         elif self._should_try_rmcp():
             json = self.get_from_rmcp()
             if json is not None:
-                self.last_backend = BACKEND_RMCP
+                successful_backend = BACKEND_RMCP
             else:
                 self.auth_failed = looks_like_auth_error(self._last_rmcp_error)
 
@@ -633,9 +634,13 @@ class IpmiServer:
             info.statuses = normalize_addon_mapping(json.get("statuses"))
             info.alias = self._alias
             self._device_info = info
+            self.last_backend = successful_backend
+            self.last_update_success = True
             self.auth_failed = False
         else:
-            self._device_info = None
+            # Preserve the last confirmed state/backend. The coordinator will
+            # mark entities unavailable only after repeated failures.
+            self.last_update_success = False
 
         if info is not None:
             sensor_ids = iter_discovered_sensor_ids(info.sensors, info.states)
@@ -652,6 +657,8 @@ class IpmiServer:
                     dispatcher_send(
                         self.hass, IPMI_NEW_SENSOR_SIGNAL.format(self._entry_id)
                     )
+
+        return self.last_update_success
 
     def is_known_sensor(self, sensor_id: str) -> bool:
         """Return True if this sensor id already has an entity."""

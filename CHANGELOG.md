@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.22.3 — 2026-08-18
+
+### Fixed
+
+- Preserve the last confirmed IPMI state through one or two isolated poll
+  failures, while still reporting real power and sensor changes immediately
+- Mark entities unavailable after three consecutive failures instead of
+  flapping on every dropped RMCP response
+- Keep command-button availability independent of background polling so
+  connectivity changes cannot replay old button presses in Activity
+
 ## 1.22.2 — 2026-08-18
 
 ### Fixed

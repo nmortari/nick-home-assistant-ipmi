@@ -31,6 +31,8 @@ PRIVILEGE_LEVELS = ["ADMINISTRATOR", "OPERATOR", "USER"]
 DEFAULT_ADDON_PORT = 9595
 DEFAULT_INTERFACE_TYPE = "lanplus"
 DEFAULT_TIMEOUT = 60
+# Ignore isolated transport failures while preserving real state changes.
+UPDATE_FAILURES_BEFORE_UNAVAILABLE = 3
 # Addon proxies a full BMC poll; keep aligned with the coordinator budget.
 DEFAULT_HTTP_TIMEOUT = 60
 

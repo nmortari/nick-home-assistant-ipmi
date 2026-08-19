@@ -44,6 +44,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_SENSOR_TYPES,
     DEFAULT_TIMEOUT,
+    UPDATE_FAILURES_BEFORE_UNAVAILABLE,
     DISPATCHERS,
     DOMAIN,
     INTEGRATION_SUPPORTED_COMMANDS,
@@ -56,7 +57,13 @@ from .const import (
 )
 from .helpers import IpmiData, get_ipmi_data, get_ipmi_server
 from .server import IpmiDeviceInfo, IpmiServer
-from .util import as_str_list, effective_sensor_types, format_entry_unique_id, normalize_options
+from .util import (
+    as_str_list,
+    effective_sensor_types,
+    format_entry_unique_id,
+    normalize_options,
+    should_retain_last_state,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -361,18 +368,53 @@ class IpmiCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=scan_interval),
         )
         self.ipmiData = ipmiData
+        self._consecutive_update_failures = 0
+
+    def _handle_update_failure(
+        self, message: str, *, cause: BaseException | None = None
+    ) -> IpmiDeviceInfo:
+        """Retain confirmed data for isolated failures, then go unavailable."""
+        self._consecutive_update_failures += 1
+        previous_data = self.data
+        if should_retain_last_state(
+            consecutive_failures=self._consecutive_update_failures,
+            has_previous_data=previous_data is not None,
+            unavailable_after=UPDATE_FAILURES_BEFORE_UNAVAILABLE,
+        ):
+            _LOGGER.warning(
+                "%s (%s/%s); retaining last confirmed state",
+                message,
+                self._consecutive_update_failures,
+                UPDATE_FAILURES_BEFORE_UNAVAILABLE,
+            )
+            return previous_data
+
+        if cause is not None:
+            raise UpdateFailed(message) from cause
+        raise UpdateFailed(message)
 
     async def _async_update_data(self) -> IpmiDeviceInfo:
         """Fetch data from IPMI server."""
-        async with asyncio.timeout(DEFAULT_TIMEOUT):
-            await self.hass.async_add_executor_job(self.ipmiData.update)
-            if not self.ipmiData.device_info:
-                if self.ipmiData.auth_failed and self.ipmiData._entry_id:
-                    entry = self.hass.config_entries.async_get_entry(
-                        self.ipmiData._entry_id
-                    )
-                    if entry is not None:
-                        entry.async_start_reauth(self.hass)
-                raise UpdateFailed("Error fetching IPMI state")
+        try:
+            async with asyncio.timeout(DEFAULT_TIMEOUT):
+                update_succeeded = await self.hass.async_add_executor_job(
+                    self.ipmiData.update
+                )
+        except TimeoutError as err:
+            return self._handle_update_failure("IPMI poll timed out", cause=err)
 
-            return self.ipmiData.device_info
+        if not update_succeeded:
+            if self.ipmiData.auth_failed and self.ipmiData._entry_id:
+                entry = self.hass.config_entries.async_get_entry(
+                    self.ipmiData._entry_id
+                )
+                if entry is not None:
+                    entry.async_start_reauth(self.hass)
+                self._consecutive_update_failures = 0
+                raise UpdateFailed("IPMI authentication failed")
+            return self._handle_update_failure("Error fetching IPMI state")
+
+        self._consecutive_update_failures = 0
+        if self.ipmiData.device_info is None:
+            raise UpdateFailed("IPMI poll succeeded without device data")
+        return self.ipmiData.device_info

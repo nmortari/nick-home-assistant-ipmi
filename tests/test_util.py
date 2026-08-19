@@ -41,6 +41,18 @@ class TestAsStrList:
         assert util.as_str_list("", ["fan"]) == ["fan"]
 
 
+class TestRetainLastState:
+    def test_retains_first_two_failures_when_data_exists(self) -> None:
+        assert util.should_retain_last_state(consecutive_failures=1, has_previous_data=True, unavailable_after=3)
+        assert util.should_retain_last_state(consecutive_failures=2, has_previous_data=True, unavailable_after=3)
+
+    def test_third_failure_becomes_unavailable(self) -> None:
+        assert not util.should_retain_last_state(consecutive_failures=3, has_previous_data=True, unavailable_after=3)
+
+    def test_initial_failure_cannot_retain_missing_data(self) -> None:
+        assert not util.should_retain_last_state(consecutive_failures=1, has_previous_data=False, unavailable_after=3)
+
+
 class TestNormalizeOptions:
     def test_unchanged_when_legacy_minimal_disabled(self) -> None:
         config = {
@@ -519,6 +531,18 @@ class TestIpmiServerLogic:
             assert srv.last_backend == self._server_mod.BACKEND_ADDON
             assert srv.device_info is not None
             assert srv.device_info.power_on is True
+
+"    def test_failed_poll_retains_last_confirmed_state_and_backend(self) -> None:
+        srv = self._make_server(backend_preference="rmcp")
+        confirmed = self._server_mod.IpmiDeviceInfo(power_on=True)
+        srv._device_info = confirmed
+        srv.last_backend = self._server_mod.BACKEND_RMCP
+        srv.last_update_success = True
+        with patch.object(srv, "get_from_rmcp", return_value=None):
+            assert srv.update() is False
+        assert srv.device_info is confirmed
+        assert srv.last_backend == self._server_mod.BACKEND_RMCP
+        assert srv.last_update_success is False
 
     def test_power_only_passes_sensor_types_param(self) -> None:
         srv = self._make_server(sensor_types=[])

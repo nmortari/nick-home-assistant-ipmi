@@ -116,9 +116,14 @@ class IpmiButton(IpmiCoordinatorEntity, ButtonEntity):
         self._attr_device_info = device_info_from_ipmi_server(data, unique_id)
         self.ipmi_data = data
 
-    def _coordinator_signature(self) -> bool:
-        """Track availability without replaying the last-pressed timestamp."""
-        return self.available
+    @property
+    def available(self) -> bool:
+        """Keep command buttons independent of background polling state."""
+        return True
+
+    def _coordinator_signature(self) -> None:
+        """Never replay a press because coordinator state changed."""
+        return None
 
     async def async_press(self) -> None:
         """Handle the button press."""
