@@ -1,4 +1,4 @@
-# IPMI connector for Home Assistant
+# Nick's IPMI Connector for Home Assistant
 
 ## What is IPMI?
 
