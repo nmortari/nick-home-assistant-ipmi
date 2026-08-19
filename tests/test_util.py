@@ -532,7 +532,7 @@ class TestIpmiServerLogic:
             assert srv.device_info is not None
             assert srv.device_info.power_on is True
 
-"    def test_failed_poll_retains_last_confirmed_state_and_backend(self) -> None:
+    def test_failed_poll_retains_last_confirmed_state_and_backend(self) -> None:
         srv = self._make_server(backend_preference="rmcp")
         confirmed = self._server_mod.IpmiDeviceInfo(power_on=True)
         srv._device_info = confirmed
