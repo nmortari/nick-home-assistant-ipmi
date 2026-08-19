@@ -9,6 +9,11 @@
   Home Assistant Activity; genuine state, attribute, and availability changes
   continue to be reported
 
+### Changed
+
+- Rebrand the integration and HACS listing as **Nick's IPMI Connector**, with
+  documentation, issue tracking, and code ownership pointing to this fork
+
 ## 1.22.1 — 2026-08-17
 
 ### Fixed
